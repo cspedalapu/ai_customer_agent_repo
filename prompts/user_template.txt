@@ -1,0 +1,9 @@
+USER QUESTION:
+{question}
+
+EVIDENCE (use ONLY this):
+{evidence}
+
+INSTRUCTIONS:
+- Answer using only EVIDENCE.
+- If EVIDENCE is insufficient, respond: "I don’t have that information in my knowledge base."

@@ -4,8 +4,9 @@ from typing import Any, Dict, List, Tuple
 from .config import Settings
 from .vectorstore import ChromaKB, distance_to_similarity
 
-def retrieve(settings: Settings, kb: ChromaKB, question: str) -> List[Dict[str, Any]]:
-    res = kb.query(question, top_k=settings.top_k)
+def retrieve(settings: Settings, kb: ChromaKB, question: str, top_k: int | None = None) -> List[Dict[str, Any]]:
+    k = top_k if top_k is not None else settings.top_k
+    res = kb.query(question, top_k=k)
     docs = (res.get("documents") or [[]])[0]
     metas = (res.get("metadatas") or [[]])[0]
     dists = (res.get("distances") or [[]])[0]

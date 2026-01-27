@@ -37,7 +37,15 @@ def ingest(settings: Settings) -> Dict[str, Any]:
         title = data.get("title") or doc_id
         text = data.get("text") or ""
         meta = data.get("metadata") or {}
-        chunks = make_chunks(doc_id=doc_id, title=title, text=text, metadata=meta)
+        chunks = make_chunks(
+    doc_id=doc_id,
+    title=title,
+    text=text,
+    metadata=meta,
+    chunk_size=settings.chunk_size,
+    overlap=settings.chunk_overlap,
+)
+
 
         for c in chunks:
             append_jsonl(chunks_index_path, {

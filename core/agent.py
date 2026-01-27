@@ -40,7 +40,9 @@ def _format_sources(hits: List[Dict[str, Any]], limit: int = 3) -> List[Dict[str
 
 def answer_question(settings: Settings, kb, question: str) -> Dict[str, Any]:
     hits = retrieve(settings, kb, question)
-    ok, best = enough_evidence(settings, hits)
+    ok, dbg = enough_evidence(settings, question, hits)
+    best = float(dbg.get("best_similarity", 0.0))
+
 
     if not ok:
         return {
@@ -48,6 +50,7 @@ def answer_question(settings: Settings, kb, question: str) -> Dict[str, Any]:
             "refusal": True,
             "best_similarity": best,
             "sources": _format_sources(hits),
+            "debug": dbg,
         }
 
     evidence = _format_evidence(hits, max_chars=settings.max_context_chars)

@@ -7,7 +7,20 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 def read_text(path: Path) -> str:
-    return path.read_text(encoding="utf-8", errors="ignore")
+    """
+    Robust text reader for mixed-encoding corpora.
+    Tries common encodings in order.
+    """
+    encodings = ["utf-8-sig", "utf-8", "cp1252", "latin-1"]
+    data = path.read_bytes()
+    for enc in encodings:
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    # last resort
+    return data.decode("utf-8", errors="ignore")
+
 
 def read_json(path: Path) -> Dict[str, Any]:
     return json.loads(read_text(path))

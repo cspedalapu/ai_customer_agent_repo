@@ -69,3 +69,7 @@ streamlit run apps/dashboard/app.py
 - Add structured tools for forms, locations, and service-specific flows
 - Add conversation memory + call notes persistence
 - Add voice gateway (Twilio) once chat quality is solid
+
+
+$env:PYTHONPATH="."
+python scripts/ingest_kb.py

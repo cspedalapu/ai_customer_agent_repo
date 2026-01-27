@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from typing import Any, Dict, List, Optional, Tuple
 import chromadb
 from chromadb.utils import embedding_functions
@@ -20,6 +22,31 @@ def _build_embedding_fn(settings: Settings):
         model_name=settings.st_model
     )
 
+def sanitize_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Chroma metadata values must be: str, int, float, bool, or None.
+    This function flattens nested dicts using dot-keys, and JSON-stringifies lists/unknown types.
+    """
+    out: Dict[str, Any] = {}
+
+    def _walk(obj: Any, prefix: str = ""):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                key = f"{prefix}.{k}" if prefix else str(k)
+                _walk(v, key)
+        elif isinstance(obj, (str, int, float, bool)) or obj is None:
+            out[prefix] = obj
+        elif isinstance(obj, list):
+            out[prefix] = json.dumps(obj, ensure_ascii=False)
+        else:
+            out[prefix] = str(obj)
+
+    _walk(meta, "")
+    # Remove empty key if present
+    out.pop("", None)
+    return out
+
+
 class ChromaKB:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -31,8 +58,9 @@ class ChromaKB:
             metadata={"hnsw:space": "cosine"},
         )
 
-    def upsert(self, ids: List[str], documents: List[str], metadatas: List[Dict[str, Any]]):
-        self.collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    def upsert(self, ids, documents, metadatas):
+        clean = [sanitize_metadata(m or {}) for m in metadatas]
+        self.collection.upsert(ids=ids, documents=documents, metadatas=clean)
 
     def query(self, query_text: str, top_k: int) -> Dict[str, Any]:
         return self.collection.query(

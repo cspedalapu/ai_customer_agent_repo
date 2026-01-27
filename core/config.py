@@ -38,7 +38,14 @@ class Settings:
     min_similarity: float = _env_float("MIN_SIMILARITY", 0.35)
     max_context_chars: int = _env_int("MAX_CONTEXT_CHARS", 8000)
 
+
+    # Additional guardrails
+    min_keyword_overlap: float = _env_float("MIN_KEYWORD_OVERLAP", 0.15)
+    high_similarity_override: float = _env_float("HIGH_SIMILARITY_OVERRIDE", 0.65)
+
+
     # Server
+
     host: str = _env("HOST", "0.0.0.0")
     port: int = _env_int("PORT", 8000)
 

@@ -60,6 +60,20 @@ def _greet_ask_name() -> str:
     )
 
 
+def _is_explicit_name_message(text: str) -> bool:
+    t = (text or "").strip().lower()
+    return any(
+        phrase in t
+        for phrase in (
+            "my name is",
+            "i am ",
+            "i'm ",
+            "this is ",
+            "call me ",
+        )
+    )
+
+
 @app.post("/chat")
 def chat(req: ChatRequest) -> Dict[str, Any]:
     session_id = ensure_session_id(req.session_id)
@@ -100,7 +114,7 @@ def chat(req: ChatRequest) -> Dict[str, Any]:
         return out
 
     maybe_name = extract_name(msg)
-    if maybe_name:
+    if maybe_name and _is_explicit_name_message(msg):
         update_session(session_id, name=maybe_name)
     session = get_session(session_id)
 

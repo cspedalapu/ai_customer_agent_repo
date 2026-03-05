@@ -6,6 +6,7 @@ __pycache__/
 .venv/
 venv/
 env/
+.env.example
 .env
 data/*
 !data/.gitkeep
@@ -17,4 +18,3 @@ knowledge_base/vector_store_chroma/*
 !knowledge_base/vector_store_chroma/.gitkeep
 *.sqlite3
 
-.env.example

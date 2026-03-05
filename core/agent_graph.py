@@ -81,6 +81,7 @@ def _route_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
             session_id,
             pending_intent=None,
             pending_booking_phone=None,
+            pending_booking_email=None,
             pending_booking_service_type=None,
         )
         return {"intent": "kb_query"}
@@ -121,19 +122,20 @@ def _book_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
     requested_slot = _extract_slot(message)
     slot_service = _service_from_slot(requested_slot)
 
-    phone = _extract_phone(message) or session.pending_booking_phone or ""
+    email = _extract_email(message) or session.pending_booking_email or ""
     service_type = _extract_service_type(message) or slot_service or session.pending_booking_service_type
 
     update_session(
         session_id,
         pending_intent="book_appointment",
-        pending_booking_phone=phone or None,
+        pending_booking_phone=None,
+        pending_booking_email=email or None,
         pending_booking_service_type=service_type or None,
     )
 
-    if not phone:
+    if not email:
         return {
-            "answer": "Please share a contact phone number for the booking (10 digits).",
+            "answer": "Great, please share the best email address for your appointment confirmation.",
             "payload": {"refusal": False},
         }
 
@@ -171,7 +173,8 @@ def _book_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
         AppointmentRequest(
             service_type=service_type,
             customer_name=name,
-            customer_phone=phone,
+            customer_email=email,
+            customer_phone="",
             slot=requested_slot,
         )
     )
@@ -179,14 +182,16 @@ def _book_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
         session_id,
         pending_intent=None,
         pending_booking_phone=None,
+        pending_booking_email=None,
         pending_booking_service_type=None,
     )
     return {
         "answer": (
-            f"Your appointment is confirmed.\n"
+            f"You're all set. Your appointment is confirmed.\n"
             f"Booking ID: {booking['booking_id']}\n"
             f"Service: {booking['service_type']}\n"
-            f"Slot: {booking['slot']}"
+            f"Slot: {booking['slot']}\n"
+            f"Email: {booking.get('customer_email', email)}"
         ),
         "payload": {"refusal": False, "booking": booking},
     }
@@ -212,16 +217,16 @@ def _cancel_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
 
 def _list_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
     session_id = state["session_id"]
-    phone = _extract_phone(state.get("message", ""))
-    if not phone:
+    email = _extract_email(state.get("message", ""))
+    if not email:
         update_session(session_id, pending_intent="list_appointments")
         return {
-            "answer": "Please share the phone number used for your booking so I can look it up.",
+            "answer": "Please share the email address used for your booking so I can look it up.",
             "payload": {"refusal": False},
         }
-    items = runner.appointment_store.bookings_for_phone(phone)
+    items = runner.appointment_store.bookings_for_email(email)
     if not items:
-        return {"answer": "I couldn't find active appointments for that phone number.", "payload": {"refusal": False}}
+        return {"answer": "I couldn't find active appointments for that email address.", "payload": {"refusal": False}}
     update_session(session_id, pending_intent=None)
     lines = [f"- {b['booking_id']} | {b['service_type']} | {b['slot']}" for b in items]
     return {"answer": "Here are your active appointments:\n" + "\n".join(lines), "payload": {"refusal": False}}
@@ -232,6 +237,11 @@ def _extract_phone(text: str) -> str:
     if len(digits) >= 10:
         return digits[-10:]
     return ""
+
+
+def _extract_email(text: str) -> str:
+    m = re.search(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", text or "", re.IGNORECASE)
+    return m.group(0).strip().lower() if m else ""
 
 
 def _extract_service_type(text: str) -> Optional[str]:

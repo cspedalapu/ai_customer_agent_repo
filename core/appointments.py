@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from .config import Settings
-from .database import AppointmentSlot, Booking, get_db, _utcnow
+from .database import AppointmentSlot, Booking, get_db, init_db, seed_default_slots, _utcnow
 
 
 @dataclass(frozen=True)
@@ -24,31 +24,26 @@ class AppointmentRequest:
     customer_name: str
     customer_phone: str
     slot: str
+    customer_email: str = ""
     notes: str = ""
 
 
 class AppointmentStore:
     def __init__(self, settings: Settings):
-        # DB tables are created by init_db(); nothing file-based anymore.
-        pass
+        # Ensure schema and seed data exist in non-API execution paths (tests, scripts).
+        init_db()
+        seed_default_slots()
 
     # ── queries ──────────────────────────────────────────────────────
 
     def list_open_slots(
         self, service_type: Optional[str] = None, limit: int = 10
     ) -> List[str]:
-        with get_db() as db:
-            q = db.query(AppointmentSlot).filter(AppointmentSlot.is_active == True)  # noqa: E712
-            if service_type:
-                q = q.filter(AppointmentSlot.service_type == service_type.lower().strip())
-
-            all_slots = q.all()
-            booked_labels = {
-                b.slot_label
-                for b in db.query(Booking).filter(Booking.status == "booked").all()
-            }
-            open_labels = [s.slot_label for s in all_slots if s.slot_label not in booked_labels]
-            return open_labels[:limit]
+        open_labels = self._query_open_slots(service_type=service_type)
+        if not open_labels:
+            self._seed_additional_slots(service_type=service_type)
+            open_labels = self._query_open_slots(service_type=service_type)
+        return open_labels[:limit]
 
     # ── mutations ────────────────────────────────────────────────────
 
@@ -74,6 +69,7 @@ class AppointmentStore:
                 booking_id=f"APT-{uuid.uuid4().hex[:10].upper()}",
                 service_type=req.service_type,
                 customer_name=req.customer_name,
+                customer_email=(req.customer_email or "").strip().lower() or None,
                 customer_phone=req.customer_phone,
                 slot_label=req.slot,
                 notes=req.notes or "",
@@ -87,6 +83,7 @@ class AppointmentStore:
                 "booking_id": booking.booking_id,
                 "service_type": booking.service_type,
                 "customer_name": booking.customer_name,
+                "customer_email": booking.customer_email or "",
                 "customer_phone": booking.customer_phone,
                 "slot": booking.slot_label,
                 "notes": booking.notes,
@@ -125,10 +122,65 @@ class AppointmentStore:
                     "service_type": b.service_type,
                     "slot": b.slot_label,
                     "customer_name": b.customer_name,
+                    "customer_email": b.customer_email or "",
                 }
                 for b in rows
                 if _normalize_phone(b.customer_phone) == p
             ]
+
+    def bookings_for_email(self, email: str) -> List[Dict[str, Any]]:
+        e = (email or "").strip().lower()
+        if not e:
+            return []
+        with get_db() as db:
+            rows = (
+                db.query(Booking)
+                .filter(Booking.status == "booked", Booking.customer_email == e)
+                .all()
+            )
+            return [
+                {
+                    "booking_id": b.booking_id,
+                    "service_type": b.service_type,
+                    "slot": b.slot_label,
+                    "customer_name": b.customer_name,
+                    "customer_email": b.customer_email or "",
+                }
+                for b in rows
+            ]
+
+    def _query_open_slots(self, service_type: Optional[str] = None) -> List[str]:
+        with get_db() as db:
+            q = db.query(AppointmentSlot).filter(AppointmentSlot.is_active == True)  # noqa: E712
+            if service_type:
+                q = q.filter(AppointmentSlot.service_type == service_type.lower().strip())
+            all_slots = q.all()
+            booked_labels = {b.slot_label for b in db.query(Booking).filter(Booking.status == "booked").all()}
+            return [s.slot_label for s in all_slots if s.slot_label not in booked_labels]
+
+    def _seed_additional_slots(self, service_type: Optional[str] = None) -> None:
+        services = [service_type.lower().strip()] if service_type else ["dl_appointment", "state_id", "renewal"]
+        # Push new capacity 3 days into the future to avoid collisions with seeded historical slots.
+        base = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=3)
+        with get_db() as db:
+            existing = {s[0] for s in db.query(AppointmentSlot.slot_label).all()}
+            for svc in services:
+                hours = [9, 10, 11] if svc != "state_id" else [13, 14, 15]
+                for hr in hours:
+                    dt = base.replace(hour=hr, minute=0)
+                    label = f"{svc} | {dt.strftime('%Y-%m-%d %H:%M')}"
+                    if label in existing:
+                        continue
+                    db.add(
+                        AppointmentSlot(
+                            service_type=svc,
+                            slot_time=dt,
+                            slot_label=label,
+                            is_active=True,
+                        )
+                    )
+                    existing.add(label)
+            db.commit()
 
 
 def _normalize_phone(phone: str) -> str:

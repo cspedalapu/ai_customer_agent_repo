@@ -23,6 +23,7 @@ class SessionState:
     stage: str = "new"
     pending_intent: Optional[str] = None
     pending_booking_phone: Optional[str] = None
+    pending_booking_email: Optional[str] = None
     pending_booking_service_type: Optional[str] = None
     created_ts: float = 0.0
     last_ts: float = 0.0
@@ -35,6 +36,7 @@ def _model_to_state(m: SessionModel) -> SessionState:
         stage=m.stage,
         pending_intent=m.pending_intent,
         pending_booking_phone=m.pending_booking_phone,
+        pending_booking_email=m.pending_booking_email,
         pending_booking_service_type=m.pending_booking_service_type,
         created_ts=m.created_at.timestamp() if m.created_at else 0.0,
         last_ts=m.updated_at.timestamp() if m.updated_at else 0.0,
@@ -80,6 +82,7 @@ def session_to_dict(s: SessionState) -> dict:
         "stage": s.stage,
         "pending_intent": s.pending_intent,
         "pending_booking_phone": s.pending_booking_phone,
+        "pending_booking_email": s.pending_booking_email,
         "pending_booking_service_type": s.pending_booking_service_type,
         "created_ts": s.created_ts,
         "last_ts": s.last_ts,

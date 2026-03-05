@@ -42,7 +42,8 @@ class ChatRequest(BaseModel):
 class BookingRequest(BaseModel):
     service_type: str
     customer_name: str
-    customer_phone: str
+    customer_email: str = ""
+    customer_phone: str = ""
     slot: str
     notes: str = ""
 
@@ -60,8 +61,8 @@ def ingest_endpoint() -> Dict[str, Any]:
 
 def _greet_ask_name() -> str:
     return (
-        "Hi, welcome to the Texas Department of Public Safety virtual assistant.\n\n"
-        "I can help with DL and ID questions, and appointment booking.\n"
+        "Hello and welcome. I am your Texas DPS virtual assistant.\n\n"
+        "I can help with driver license and ID questions, plus appointments.\n"
         "May I know your name?"
     )
 
@@ -119,7 +120,7 @@ def chat(req: ChatRequest) -> Dict[str, Any]:
         if name:
             update_session(session_id, name=name, stage="active")
             out = {
-                "answer": f"Thanks, {name}. How can I help you today?",
+                "answer": f"Nice to meet you, {name}. How can I help you today?",
                 "refusal": False,
                 "session_id": session_id,
                 "stage": "active",
@@ -183,6 +184,7 @@ def book_appointment(req: BookingRequest) -> Dict[str, Any]:
             customer_name=req.customer_name,
             customer_phone=req.customer_phone,
             slot=req.slot,
+            customer_email=req.customer_email,
             notes=req.notes,
         )
     )

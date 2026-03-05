@@ -85,6 +85,7 @@ class SessionModel(Base):
     stage = Column(String(30), nullable=False, default="new")
     pending_intent = Column(String(50), nullable=True)
     pending_booking_phone = Column(String(20), nullable=True)
+    pending_booking_email = Column(String(320), nullable=True)
     pending_booking_service_type = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False)
@@ -117,6 +118,7 @@ class Booking(Base):
     booking_id = Column(String(30), unique=True, nullable=False, index=True)
     service_type = Column(String(50), nullable=False)
     customer_name = Column(String(200), nullable=False)
+    customer_email = Column(String(320), nullable=True)
     customer_phone = Column(String(20), nullable=False, index=True)
     slot_label = Column(String(120), nullable=False)
     notes = Column(Text, default="")
@@ -159,6 +161,21 @@ def init_db() -> None:
         pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     Base.metadata.create_all(bind=engine)
+    _ensure_compatible_schema()
+
+
+def _ensure_compatible_schema() -> None:
+    # Lightweight SQLite migrations for newly added columns.
+    if "sqlite" not in _DB_URL:
+        return
+    with engine.begin() as conn:
+        session_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(sessions)").fetchall()}
+        if "pending_booking_email" not in session_cols:
+            conn.exec_driver_sql("ALTER TABLE sessions ADD COLUMN pending_booking_email VARCHAR(320)")
+
+        booking_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(bookings)").fetchall()}
+        if "customer_email" not in booking_cols:
+            conn.exec_driver_sql("ALTER TABLE bookings ADD COLUMN customer_email VARCHAR(320)")
 
 
 @contextmanager

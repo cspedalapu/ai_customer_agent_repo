@@ -166,6 +166,12 @@ header[data-testid="stHeader"] {
     padding: .8rem 1.2rem !important;
     box-shadow: var(--shadow-sm) !important;
     font-size: .92rem !important;
+    color: #000 !important;
+    -webkit-text-fill-color: #000 !important;
+}
+[data-testid="stChatInput"] textarea::placeholder {
+    color: #444 !important;
+    opacity: 1 !important;
 }
 [data-testid="stChatMessage"] {
     background: transparent !important;
@@ -173,6 +179,10 @@ header[data-testid="stHeader"] {
     padding: .2rem 0 !important;
     max-width: 740px;
     margin: 0 auto;
+}
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"],
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] * {
+    color: #000 !important;
 }
 
 div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
@@ -298,7 +308,7 @@ def _render_assistant_meta(meta: Dict[str, Any]) -> None:
 
 def _render_message(msg: Dict[str, Any]) -> None:
     role = msg["role"]
-    avatar = "*" if role == "assistant" else "U"
+    avatar = "🤖" if role == "assistant" else "👤"
     with st.chat_message(role, avatar=avatar):
         st.markdown(msg["content"])
         if role == "assistant":
@@ -458,10 +468,10 @@ def _render_sidebar() -> None:
 def _handle_user_message(prompt: str) -> None:
     st.session_state["messages"].append({"role": "user", "content": prompt})
 
-    with st.chat_message("user", avatar="U"):
+    with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant", avatar="*"):
+    with st.chat_message("assistant", avatar="🤖"):
         typing_placeholder = st.empty()
         typing_placeholder.markdown(
             '<div class="typing-dots"><span></span><span></span><span></span></div>',

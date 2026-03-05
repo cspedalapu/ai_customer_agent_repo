@@ -1,8 +1,3 @@
-"""
-CivicFlow – Texas DPS Virtual Assistant
-GPT / Gemini-style chat dashboard built with Streamlit.
-"""
-
 from __future__ import annotations
 
 import time
@@ -11,24 +6,22 @@ from typing import Any, Dict, List
 import requests
 import streamlit as st
 
-# ── Page config ──────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Texas DPS Virtual Assistant",
-    page_icon="⭐",
+    page_icon="*",
     layout="centered",
     initial_sidebar_state="collapsed",
 )
 
-# ── Constants ────────────────────────────────────────────────────────────
 API_DEFAULT = "http://127.0.0.1:8000"
 
 SUGGESTED_PROMPTS: List[Dict[str, str]] = [
-    {"icon": "🪪", "label": "Driver License", "prompt": "How do I apply for a Texas driver license?"},
-    {"icon": "🆔", "label": "State ID Card", "prompt": "What documents do I need for a Texas ID card?"},
-    {"icon": "📅", "label": "Book Appointment", "prompt": "I want to book a DL appointment"},
-    {"icon": "🔄", "label": "Renew Online", "prompt": "Can I renew my driver license online?"},
-    {"icon": "🚛", "label": "Commercial DL", "prompt": "What are the requirements for a CDL?"},
-    {"icon": "❓", "label": "FAQ", "prompt": "What are the most common DL questions?"},
+    {"label": "Driver License", "prompt": "How do I apply for a Texas driver license?"},
+    {"label": "State ID Card", "prompt": "What documents do I need for a Texas ID card?"},
+    {"label": "Book Appointment", "prompt": "I want to book a DL appointment"},
+    {"label": "Renew Online", "prompt": "Can I renew my driver license online?"},
+    {"label": "Commercial DL", "prompt": "What are the requirements for a CDL?"},
+    {"label": "FAQ", "prompt": "What are the most common DL questions?"},
 ]
 
 SERVICE_LINKS: List[Dict[str, str]] = [
@@ -40,30 +33,16 @@ SERVICE_LINKS: List[Dict[str, str]] = [
     {"title": "FAQ", "url": "https://www.dps.texas.gov/section/driver-license/how-can-we-help"},
 ]
 
-
-# ── Inject CSS ───────────────────────────────────────────────────────────
-def inject_css() -> None:
-    st.markdown(_CSS, unsafe_allow_html=True)
-
-
 _CSS = """
 <style>
-/* ── Root variables ──────────────────────────────────────────────── */
 :root {
-    --dps-navy:      #002868;
+    --dps-navy: #002868;
     --dps-navy-dark: #001845;
-    --dps-gold:      #BF9B30;
-    --dps-light:     #F5F7FA;
-    --bubble-user:   #002868;
-    --bubble-bot:    #FFFFFF;
-    --text-user:     #FFFFFF;
-    --text-bot:      #1E1E1E;
-    --radius:        1rem;
-    --shadow-sm:     0 1px 3px rgba(0,0,0,.08);
-    --shadow-md:     0 4px 12px rgba(0,0,0,.10);
+    --dps-light: #f5f7fa;
+    --radius: 1rem;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.10);
 }
-
-/* ── Global polish ───────────────────────────────────────────────── */
 html, body, [data-testid="stAppViewContainer"] {
     background: var(--dps-light) !important;
 }
@@ -71,9 +50,11 @@ html, body, [data-testid="stAppViewContainer"] {
     background: var(--dps-navy-dark) !important;
 }
 [data-testid="stSidebar"] * {
-    color: #E0E0E0 !important;
+    color: #e0e0e0 !important;
 }
-[data-testid="stSidebar"] input {
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] textarea,
+[data-testid="stSidebar"] select {
     background: rgba(255,255,255,.1) !important;
     border: 1px solid rgba(255,255,255,.2) !important;
     color: #fff !important;
@@ -81,8 +62,8 @@ html, body, [data-testid="stAppViewContainer"] {
 header[data-testid="stHeader"] {
     background: transparent !important;
 }
+#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
 
-/* ── Top banner ──────────────────────────────────────────────────── */
 .dps-banner {
     background: linear-gradient(135deg, var(--dps-navy) 0%, var(--dps-navy-dark) 100%);
     color: #fff;
@@ -95,7 +76,6 @@ header[data-testid="stHeader"] {
 .dps-banner .title {
     font-size: 1.25rem;
     font-weight: 700;
-    letter-spacing: .02em;
 }
 .dps-banner .subtitle {
     font-size: .82rem;
@@ -103,7 +83,6 @@ header[data-testid="stHeader"] {
     margin-top: 2px;
 }
 
-/* ── Welcome hero ────────────────────────────────────────────────── */
 .welcome-hero {
     text-align: center;
     padding: 2.5rem 1rem 1rem;
@@ -120,9 +99,8 @@ header[data-testid="stHeader"] {
     margin: 0 auto;
 }
 
-/* ── Source card ──────────────────────────────────────────────────── */
 .source-card {
-    background: #F0F4FF;
+    background: #f0f4ff;
     border-left: 3px solid var(--dps-navy);
     border-radius: .4rem;
     padding: .5rem .8rem;
@@ -132,18 +110,10 @@ header[data-testid="stHeader"] {
 }
 .source-card strong { color: var(--dps-navy); }
 
-/* ── Meta caption ────────────────────────────────────────────────── */
-.meta-caption {
-    font-size: .72rem;
-    color: #888;
-    margin-top: .3rem;
-    padding-left: 2px;
-}
-
-/* ── Typing dots ─────────────────────────────────────────────────── */
 .typing-dots span {
     display: inline-block;
-    width: 7px; height: 7px;
+    width: 7px;
+    height: 7px;
     margin: 0 2px;
     background: var(--dps-navy);
     border-radius: 50%;
@@ -153,10 +123,9 @@ header[data-testid="stHeader"] {
 .typing-dots span:nth-child(3) { animation-delay: .3s; }
 @keyframes bounce {
     0%, 80%, 100% { transform: translateY(0); }
-    40%           { transform: translateY(-6px); }
+    40% { transform: translateY(-6px); }
 }
 
-/* ── Quick-link cards ────────────────────────────────────────────── */
 .link-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -177,10 +146,9 @@ header[data-testid="stHeader"] {
 }
 .link-card:hover {
     border-color: var(--dps-navy);
-    background: #EFF3FA;
+    background: #eff3fa;
 }
 
-/* ── Footer ──────────────────────────────────────────────────────── */
 .dps-footer {
     text-align: center;
     font-size: .7rem;
@@ -188,27 +156,17 @@ header[data-testid="stHeader"] {
     padding: 1.5rem 0 .5rem;
 }
 
-/* ── Hide default Streamlit chrome ───────────────────────────────── */
-#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
-
-/* ── Chat input area ─────────────────────────────────────────────── */
 [data-testid="stChatInput"] {
     max-width: 740px !important;
     margin: 0 auto !important;
 }
 [data-testid="stChatInput"] textarea {
     border-radius: 1.2rem !important;
-    border: 1.5px solid #D0D5DD !important;
+    border: 1.5px solid #d0d5dd !important;
     padding: .8rem 1.2rem !important;
     box-shadow: var(--shadow-sm) !important;
     font-size: .92rem !important;
 }
-[data-testid="stChatInput"] textarea:focus {
-    border-color: var(--dps-navy) !important;
-    box-shadow: 0 0 0 2px rgba(0,40,104,.15) !important;
-}
-
-/* ── Streamlit native chat messages overrides ────────────────────── */
 [data-testid="stChatMessage"] {
     background: transparent !important;
     border: none !important;
@@ -217,10 +175,9 @@ header[data-testid="stHeader"] {
     margin: 0 auto;
 }
 
-/* ── Suggestion-pill buttons ─────────────────────────────────────── */
 div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
     background: #fff !important;
-    border: 1.5px solid #E0E4EA !important;
+    border: 1.5px solid #e0e4ea !important;
     border-radius: .8rem !important;
     padding: .65rem 1rem !important;
     font-size: .88rem !important;
@@ -230,7 +187,7 @@ div[data-testid="stHorizontalBlock"] button[kind="secondary"] {
 }
 div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover {
     border-color: var(--dps-navy) !important;
-    background: #EFF3FA !important;
+    background: #eff3fa !important;
     transform: translateY(-1px) !important;
     box-shadow: var(--shadow-md) !important;
 }
@@ -238,16 +195,20 @@ div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover {
 """
 
 
-# ── Session helpers ──────────────────────────────────────────────────────
+def inject_css() -> None:
+    st.markdown(_CSS, unsafe_allow_html=True)
+
+
 def _init_state() -> None:
     st.session_state.setdefault("session_id", "")
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("api_url", API_DEFAULT)
     st.session_state.setdefault("pending_prompt", None)
     st.session_state.setdefault("user_name", "")
+    st.session_state.setdefault("rag_debug_query", "")
+    st.session_state.setdefault("rag_hits", [])
 
 
-# ── API call ─────────────────────────────────────────────────────────────
 def _call_chat(api_url: str, session_id: str, message: str) -> Dict[str, Any]:
     payload = {"session_id": session_id or None, "message": message}
     r = requests.post(f"{api_url}/chat", json=payload, timeout=60)
@@ -255,13 +216,25 @@ def _call_chat(api_url: str, session_id: str, message: str) -> Dict[str, Any]:
     return r.json()
 
 
-# ── Render helpers ───────────────────────────────────────────────────────
+def _call_retrieve(api_url: str, message: str) -> Dict[str, Any]:
+    payload = {"session_id": None, "message": message}
+    r = requests.post(f"{api_url}/retrieve", json=payload, timeout=60)
+    r.raise_for_status()
+    return r.json()
+
+
+def _call_history(api_url: str, session_id: str, limit: int = 50) -> Dict[str, Any]:
+    r = requests.get(f"{api_url}/history/{session_id}", params={"limit": limit}, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
 def _render_banner() -> None:
     st.markdown(
         """
         <div class="dps-banner">
             <div class="title">Texas DPS Virtual Assistant</div>
-            <div class="subtitle">Driver License &amp; ID Card Services</div>
+            <div class="subtitle">Driver License and ID Card Services</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -273,64 +246,63 @@ def _render_welcome() -> None:
         """
         <div class="welcome-hero">
             <h2>How can I help you today?</h2>
-            <p>I'm your Texas DPS virtual assistant.  Ask me about driver licenses,
-            ID cards, appointments, renewals, and more.</p>
+            <p>Ask about driver licenses, ID cards, appointments, renewals, and requirements.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Suggested-prompt pills (2 rows × 3 columns)
     cols = st.columns(3)
-    for idx, sp in enumerate(SUGGESTED_PROMPTS):
-        col = cols[idx % 3]
-        with col:
-            if st.button(
-                f"{sp['icon']}  {sp['label']}",
-                key=f"sp_{idx}",
-                use_container_width=True,
-            ):
-                st.session_state["pending_prompt"] = sp["prompt"]
+    for idx, prompt in enumerate(SUGGESTED_PROMPTS):
+        with cols[idx % 3]:
+            if st.button(prompt["label"], key=f"sp_{idx}", use_container_width=True):
+                st.session_state["pending_prompt"] = prompt["prompt"]
                 st.rerun()
 
-    # Quick-link section
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("##### 🔗 Popular DPS Links")
+    st.markdown("##### Popular DPS Links")
     link_html = '<div class="link-grid">'
-    for lk in SERVICE_LINKS:
-        link_html += f'<a href="{lk["url"]}" target="_blank" class="link-card">{lk["title"]}</a>'
+    for item in SERVICE_LINKS:
+        link_html += f'<a href="{item["url"]}" target="_blank" class="link-card">{item["title"]}</a>'
     link_html += "</div>"
     st.markdown(link_html, unsafe_allow_html=True)
 
 
-def _render_message(msg: Dict[str, Any]) -> None:
-    """Render a single chat message using Streamlit's native chat_message."""
-    role = msg["role"]
-    with st.chat_message(role, avatar="⭐" if role == "assistant" else "👤"):
-        st.markdown(msg["content"])
-        meta = msg.get("meta") or {}
-        if role == "assistant" and meta:
-            parts: List[str] = []
-            if meta.get("intent"):
-                parts.append(f"Intent: {meta['intent']}")
-            if meta.get("best_similarity") is not None:
-                parts.append(f"Confidence: {meta['best_similarity']:.2%}")
-            if parts:
-                st.caption(" · ".join(parts))
+def _render_assistant_meta(meta: Dict[str, Any]) -> None:
+    parts: List[str] = []
+    if meta.get("intent"):
+        parts.append(f"Intent: {meta['intent']}")
+    if meta.get("best_similarity") is not None:
+        parts.append(f"Confidence: {meta['best_similarity']:.2%}")
+    timings = meta.get("timings_ms") or {}
+    if timings:
+        total_ms = sum(float(v or 0) for v in timings.values())
+        parts.append(f"Latency: {int(total_ms)} ms")
+    if parts:
+        st.caption(" | ".join(parts))
 
-            sources = meta.get("sources") or []
-            if sources:
-                with st.expander("📚 Sources", expanded=False):
-                    for src in sources:
-                        title = src.get("title", "Source")
-                        url = src.get("source_url", "")
-                        sim = src.get("similarity", 0)
-                        link_part = f' — <a href="{url}" target="_blank">link</a>' if url else ""
-                        st.markdown(
-                            f'<div class="source-card"><strong>{title}</strong>{link_part}'
-                            f"<br>Similarity: {sim:.4f}</div>",
-                            unsafe_allow_html=True,
-                        )
+    sources = meta.get("sources") or []
+    if sources:
+        with st.expander("Sources", expanded=False):
+            for src in sources:
+                title = src.get("title", "Source")
+                url = src.get("source_url", "")
+                sim = src.get("similarity", 0)
+                link_part = f' - <a href="{url}" target="_blank">link</a>' if url else ""
+                st.markdown(
+                    f'<div class="source-card"><strong>{title}</strong>{link_part}'
+                    f"<br>Similarity: {sim:.4f}</div>",
+                    unsafe_allow_html=True,
+                )
+
+
+def _render_message(msg: Dict[str, Any]) -> None:
+    role = msg["role"]
+    avatar = "*" if role == "assistant" else "U"
+    with st.chat_message(role, avatar=avatar):
+        st.markdown(msg["content"])
+        if role == "assistant":
+            _render_assistant_meta(msg.get("meta") or {})
 
 
 def _render_chat_history() -> None:
@@ -338,17 +310,56 @@ def _render_chat_history() -> None:
         _render_message(msg)
 
 
-# ── Sidebar ──────────────────────────────────────────────────────────────
+def _history_to_messages(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    messages: List[Dict[str, Any]] = []
+    for event in events:
+        role = event.get("role")
+        if role not in {"user", "assistant"}:
+            continue
+        item: Dict[str, Any] = {"role": role, "content": event.get("content", "")}
+        if role == "assistant":
+            item["meta"] = {
+                "intent": event.get("intent"),
+                "refusal": event.get("refusal"),
+                "best_similarity": event.get("best_similarity"),
+                "sources": event.get("sources", []),
+                "timings_ms": event.get("timings_ms", {}),
+            }
+        messages.append(item)
+    return messages
+
+
 def _render_sidebar() -> None:
     with st.sidebar:
-        st.markdown("### ⚙️ Settings")
-        st.session_state["api_url"] = st.text_input(
-            "API Endpoint",
-            value=st.session_state["api_url"],
-        )
+        st.markdown("### Settings")
+        st.session_state["api_url"] = st.text_input("API Endpoint", value=st.session_state["api_url"])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Health", use_container_width=True):
+                try:
+                    r = requests.get(f"{st.session_state['api_url']}/health", timeout=10)
+                    r.raise_for_status()
+                    st.success("API is reachable")
+                except Exception as exc:
+                    st.error(f"Health check failed: {exc}")
+        with c2:
+            if st.button("Reload History", use_container_width=True):
+                session_id = st.session_state.get("session_id", "")
+                if not session_id:
+                    st.info("No active session yet.")
+                else:
+                    try:
+                        data = _call_history(st.session_state["api_url"], session_id=session_id, limit=100)
+                        events = data.get("events", [])
+                        st.session_state["messages"] = _history_to_messages(events)
+                        st.success(f"Loaded {len(events)} events")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"History error: {exc}")
 
         st.divider()
-        st.markdown("### 💬 Session")
+        st.markdown("### Session")
         if st.session_state["session_id"]:
             st.code(st.session_state["session_id"], language=None)
         else:
@@ -357,7 +368,7 @@ def _render_sidebar() -> None:
         if st.session_state.get("user_name"):
             st.markdown(f"**User:** {st.session_state['user_name']}")
 
-        if st.button("🗑️  New Conversation", use_container_width=True):
+        if st.button("New Conversation", use_container_width=True):
             st.session_state["session_id"] = ""
             st.session_state["messages"] = []
             st.session_state["user_name"] = ""
@@ -365,13 +376,12 @@ def _render_sidebar() -> None:
             st.rerun()
 
         st.divider()
-        st.markdown("### � Analytics")
+        st.markdown("### Analytics")
         if st.button("Refresh Stats", use_container_width=True):
             try:
                 r = requests.get(f"{st.session_state['api_url']}/stats", timeout=10)
                 r.raise_for_status()
-                data = r.json()
-                st.session_state["_stats"] = data
+                st.session_state["_stats"] = r.json()
             except Exception as exc:
                 st.error(f"Stats error: {exc}")
         stats = st.session_state.get("_stats")
@@ -384,7 +394,7 @@ def _render_sidebar() -> None:
             c4.metric("Cancelled", stats.get("cancelled_bookings", 0))
 
         st.divider()
-        st.markdown("### 📅 Appointments")
+        st.markdown("### Appointments")
         svc = st.selectbox("Service", ["", "dl_appointment", "state_id", "renewal"], label_visibility="collapsed")
         if st.button("View Open Slots", use_container_width=True):
             try:
@@ -393,46 +403,65 @@ def _render_sidebar() -> None:
                 r.raise_for_status()
                 slots = r.json().get("slots", [])
                 if slots:
-                    for s in slots[:6]:
-                        st.markdown(f"- `{s}`")
+                    for slot in slots[:8]:
+                        st.markdown(f"- `{slot}`")
                 else:
                     st.info("No open slots found.")
             except Exception as exc:
-                st.error(f"Error: {exc}")
+                st.error(f"Slots error: {exc}")
 
         st.divider()
-        st.markdown("### 📖 Knowledge Base")
+        st.markdown("### Knowledge Base")
         if st.button("Rebuild Index", use_container_width=True):
-            with st.spinner("Ingesting…"):
+            with st.spinner("Ingesting KB..."):
                 try:
                     r = requests.post(f"{st.session_state['api_url']}/ingest", timeout=300)
                     r.raise_for_status()
-                    st.success("Index rebuilt ✓")
+                    st.success("Index rebuilt")
                 except Exception as exc:
-                    st.error(f"Error: {exc}")
+                    st.error(f"Ingest error: {exc}")
+
+        st.session_state["rag_debug_query"] = st.text_input(
+            "RAG debug query",
+            value=st.session_state["rag_debug_query"],
+            placeholder="Test retrieval for a specific question",
+        )
+        if st.button("Run Retrieval Debug", use_container_width=True):
+            query = st.session_state.get("rag_debug_query", "").strip()
+            if not query:
+                st.info("Enter a query first.")
+            else:
+                try:
+                    data = _call_retrieve(st.session_state["api_url"], message=query)
+                    st.session_state["rag_hits"] = data.get("hits", [])
+                except Exception as exc:
+                    st.error(f"Retrieve error: {exc}")
+
+        rag_hits = st.session_state.get("rag_hits", [])
+        if rag_hits:
+            st.caption("Top retrieval hits")
+            for idx, hit in enumerate(rag_hits[:5], start=1):
+                title = hit.get("title") or hit.get("doc_id") or "Untitled"
+                sim = float(hit.get("similarity") or 0.0)
+                preview = (hit.get("preview") or "").strip()
+                st.markdown(f"**{idx}. {title}** ({sim:.2%})")
+                if preview:
+                    st.caption(preview[:180] + ("..." if len(preview) > 180 else ""))
 
         st.divider()
         st.markdown(
-            '<div class="dps-footer">'
-            "Powered by SQLite · SQLAlchemy<br>"
-            "© 2026 Texas DPS – CivicFlow Demo"
-            "</div>",
+            '<div class="dps-footer">Powered by Chroma RAG and LangGraph<br>Texas DPS - CivicFlow Demo</div>',
             unsafe_allow_html=True,
         )
 
 
-# ── Process a user message ──────────────────────────────────────────────
 def _handle_user_message(prompt: str) -> None:
-    """Send the user message to the API and append bot reply."""
     st.session_state["messages"].append({"role": "user", "content": prompt})
 
-    # Show the user bubble instantly
-    with st.chat_message("user", avatar="👤"):
+    with st.chat_message("user", avatar="U"):
         st.markdown(prompt)
 
-    # Bot reply
-    with st.chat_message("assistant", avatar="⭐"):
-        # Typing indicator
+    with st.chat_message("assistant", avatar="*"):
         typing_placeholder = st.empty()
         typing_placeholder.markdown(
             '<div class="typing-dots"><span></span><span></span><span></span></div>',
@@ -443,14 +472,13 @@ def _handle_user_message(prompt: str) -> None:
             data = _call_chat(st.session_state["api_url"], st.session_state["session_id"], prompt)
         except Exception as exc:
             typing_placeholder.empty()
-            err = f"⚠️ Could not reach the API — `{exc}`"
+            err = f"Could not reach API: {exc}"
             st.error(err)
             st.session_state["messages"].append({"role": "assistant", "content": err, "meta": {}})
             return
 
         typing_placeholder.empty()
 
-        # Capture session info
         st.session_state["session_id"] = data.get("session_id", st.session_state["session_id"])
         if data.get("name"):
             st.session_state["user_name"] = data["name"]
@@ -461,49 +489,24 @@ def _handle_user_message(prompt: str) -> None:
             "refusal": data.get("refusal"),
             "best_similarity": data.get("best_similarity"),
             "sources": data.get("sources", []),
+            "timings_ms": data.get("timings_ms", {}),
+            "stage": data.get("stage"),
         }
 
-        # Simulate incremental word reveal (Gemini-style)
         msg_placeholder = st.empty()
         revealed = ""
         words = answer.split(" ")
-        for i, word in enumerate(words):
+        for idx, word in enumerate(words):
             revealed += word + " "
-            if i % 4 == 0 or i == len(words) - 1:
+            if idx % 4 == 0 or idx == len(words) - 1:
                 msg_placeholder.markdown(revealed)
                 time.sleep(0.02)
         msg_placeholder.markdown(answer)
 
-        # Meta caption
-        parts: List[str] = []
-        if meta.get("intent"):
-            parts.append(f"Intent: {meta['intent']}")
-        if meta.get("best_similarity") is not None:
-            parts.append(f"Confidence: {meta['best_similarity']:.2%}")
-        if parts:
-            st.caption(" · ".join(parts))
-
-        # Sources
-        sources = meta.get("sources") or []
-        if sources:
-            with st.expander("📚 Sources", expanded=False):
-                for src in sources:
-                    title = src.get("title", "Source")
-                    url = src.get("source_url", "")
-                    sim = src.get("similarity", 0)
-                    link_part = f' — <a href="{url}" target="_blank">link</a>' if url else ""
-                    st.markdown(
-                        f'<div class="source-card"><strong>{title}</strong>{link_part}'
-                        f"<br>Similarity: {sim:.4f}</div>",
-                        unsafe_allow_html=True,
-                    )
-
+        _render_assistant_meta(meta)
         st.session_state["messages"].append({"role": "assistant", "content": answer, "meta": meta})
 
 
-# ══════════════════════════════════════════════════════════════════════════
-#  MAIN
-# ══════════════════════════════════════════════════════════════════════════
 def main() -> None:
     _init_state()
     inject_css()
@@ -511,24 +514,19 @@ def main() -> None:
     _render_sidebar()
 
     has_messages = len(st.session_state["messages"]) > 0
-
-    # If no conversation yet → show welcome hero + suggestion pills
     if not has_messages:
         _render_welcome()
 
-    # If a suggestion pill was clicked, treat it as user input
     pending = st.session_state.get("pending_prompt")
     if pending:
         st.session_state["pending_prompt"] = None
         _handle_user_message(pending)
         return
 
-    # Render existing chat history
     if has_messages:
         _render_chat_history()
 
-    # Chat input
-    prompt = st.chat_input("Ask about DL/ID services, appointments, renewals…")
+    prompt = st.chat_input("Ask about DL/ID services, appointments, renewals...")
     if prompt:
         _handle_user_message(prompt)
 

@@ -160,27 +160,39 @@ class AppointmentStore:
 
     def _seed_additional_slots(self, service_type: Optional[str] = None) -> None:
         services = [service_type.lower().strip()] if service_type else ["dl_appointment", "state_id", "renewal"]
-        # Push new capacity 3 days into the future to avoid collisions with seeded historical slots.
-        base = datetime.now(timezone.utc).replace(second=0, microsecond=0) + timedelta(days=3)
+        # Push new capacity into the future and keep advancing day offsets until
+        # we can insert unique slot labels.
+        base = datetime.now(timezone.utc).replace(second=0, microsecond=0)
         with get_db() as db:
             existing = {s[0] for s in db.query(AppointmentSlot.slot_label).all()}
+            added = 0
             for svc in services:
                 hours = [9, 10, 11] if svc != "state_id" else [13, 14, 15]
-                for hr in hours:
-                    dt = base.replace(hour=hr, minute=0)
-                    label = f"{svc} | {dt.strftime('%Y-%m-%d %H:%M')}"
-                    if label in existing:
-                        continue
-                    db.add(
-                        AppointmentSlot(
-                            service_type=svc,
-                            slot_time=dt,
-                            slot_label=label,
-                            is_active=True,
+                inserted_for_service = 0
+                for day_offset in range(3, 31):
+                    if inserted_for_service >= 3:
+                        break
+                    day_base = base + timedelta(days=day_offset)
+                    for hr in hours:
+                        if inserted_for_service >= 3:
+                            break
+                        dt = day_base.replace(hour=hr, minute=0)
+                        label = f"{svc} | {dt.strftime('%Y-%m-%d %H:%M')}"
+                        if label in existing:
+                            continue
+                        db.add(
+                            AppointmentSlot(
+                                service_type=svc,
+                                slot_time=dt,
+                                slot_label=label,
+                                is_active=True,
+                            )
                         )
-                    )
-                    existing.add(label)
-            db.commit()
+                        existing.add(label)
+                        inserted_for_service += 1
+                        added += 1
+            if added:
+                db.commit()
 
 
 def _normalize_phone(phone: str) -> str:

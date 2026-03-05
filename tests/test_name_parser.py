@@ -13,3 +13,11 @@ def test_extract_name_simple_full_name():
 
 def test_extract_name_short_reply():
     assert extract_name("Alex") == "Alex"
+
+
+def test_extract_name_ignores_hello():
+    assert extract_name("hello") is None
+
+
+def test_extract_name_ignores_intent_phrase():
+    assert extract_name("looking for DL") is None

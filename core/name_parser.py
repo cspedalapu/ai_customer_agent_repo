@@ -34,6 +34,18 @@ _NAME_STOPWORDS = {
     "id",
 }
 
+_NON_NAME_TOKENS = _NAME_STOPWORDS | {
+    "hi",
+    "hello",
+    "hey",
+    "yo",
+    "hola",
+    "thanks",
+    "thank",
+    "okay",
+    "ok",
+}
+
 def extract_name(text: str) -> Optional[str]:
     if not text:
         return None
@@ -43,13 +55,18 @@ def extract_name(text: str) -> Optional[str]:
         m = p.search(t)
         if m:
             name = m.group(1).strip()
-            return _clean(name)
+            cleaned = _clean(name)
+            return cleaned or None
 
     # If user just replies with a short name (1–3 tokens), treat it as name
     # Example: "Chandra", "Appala Naidu"
     tokens = re.findall(r"[A-Za-z][A-Za-z.'-]*", t)
     if 1 <= len(tokens) <= 3 and len(t) <= 30:
-        return _clean(" ".join(tokens))
+        # Ignore generic greetings/intent fragments like "hello" or "looking for dl".
+        if tokens[0].lower() in _NON_NAME_TOKENS:
+            return None
+        cleaned = _clean(" ".join(tokens))
+        return cleaned or None
 
     return None
 
@@ -68,6 +85,8 @@ def _clean(name: str) -> str:
     tokens = re.findall(r"[A-Za-z][A-Za-z.'-]*", name)
     kept = []
     for tok in tokens:
+        if not kept and tok.lower() in _NON_NAME_TOKENS:
+            break
         if tok.lower() in _NAME_STOPWORDS and kept:
             break
         kept.append(tok)
@@ -75,6 +94,8 @@ def _clean(name: str) -> str:
             break
     if kept:
         name = " ".join(kept)
+    else:
+        return ""
 
     # Prevent weird all-caps shouting
     if len(name) >= 2 and name.isupper():

@@ -5,6 +5,7 @@ from core.agent_graph import AgentGraphRunner
 from core.appointments import AppointmentStore
 from core.config import Settings
 from core.database import Booking, get_db
+from core.session_store import update_session
 
 
 class DummyKB:
@@ -83,3 +84,51 @@ def test_booking_accepts_datetime_only_slot_selection(tmp_path: Path):
 
     assert out["intent"] == "book_appointment"
     assert "appointment is confirmed" in out["answer"].lower()
+
+
+def test_booking_no_slots_resets_service_selection(tmp_path: Path):
+    runner = _runner(tmp_path)
+    session_id = f"s5-{uuid.uuid4().hex[:8]}"
+
+    # Force no-slot condition for any service query.
+    runner.appointment_store.list_open_slots = lambda service_type=None, limit=10: []  # type: ignore[method-assign]
+
+    runner.run(session_id=session_id, message="My name is Chris and I need an appointment")
+    runner.run(session_id=session_id, message="chris@example.com")
+    out1 = runner.run(session_id=session_id, message="renewal")
+    assert "could not find open slots" in out1["answer"].lower()
+
+    # After no slots, next message should re-prompt for service choice, not repeat stale no-slot loop.
+    out2 = runner.run(session_id=session_id, message="what other services do you provide")
+    assert "what service do you need an appointment for" in out2["answer"].lower()
+
+
+def test_booking_allows_side_kb_question(tmp_path: Path):
+    runner = _runner(tmp_path)
+    session_id = f"s8-{uuid.uuid4().hex[:8]}"
+
+    # Force no-slot condition so flow remains in booking mode.
+    runner.appointment_store.list_open_slots = lambda service_type=None, limit=10: []  # type: ignore[method-assign]
+
+    runner.run(session_id=session_id, message="My name is Chris and I need an appointment")
+    runner.run(session_id=session_id, message="chris@example.com")
+    runner.run(session_id=session_id, message="renewal")
+
+    out = runner.run(session_id=session_id, message="what documents should I carry for appointment")
+    assert out["intent"] == "kb_query"
+
+
+def test_smalltalk_thanks_does_not_trigger_kb_clarification(tmp_path: Path):
+    runner = _runner(tmp_path)
+    out = runner.run(session_id=f"s6-{uuid.uuid4().hex[:8]}", message="thank you")
+    assert out["intent"] == "smalltalk"
+    assert "you're welcome" in out["answer"].lower()
+
+
+def test_smalltalk_greeting_with_name(tmp_path: Path):
+    runner = _runner(tmp_path)
+    session_id = f"s7-{uuid.uuid4().hex[:8]}"
+    update_session(session_id, name="Alex", stage="active", pending_intent=None)
+    out = runner.run(session_id=session_id, message="hello")
+    assert out["intent"] == "smalltalk"
+    assert "hi alex" in out["answer"].lower()

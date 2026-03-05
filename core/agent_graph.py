@@ -12,7 +12,7 @@ from .config import Settings
 from .name_parser import extract_name
 from .session_store import get_session, update_session
 
-Intent = Literal["book_appointment", "cancel_appointment", "list_appointments", "kb_query"]
+Intent = Literal["book_appointment", "cancel_appointment", "list_appointments", "kb_query", "smalltalk"]
 
 
 class AgentState(TypedDict, total=False):
@@ -48,6 +48,7 @@ class AgentGraphRunner:
 def _build_graph(runner: AgentGraphRunner):
     graph = StateGraph(AgentState)
     graph.add_node("route", lambda s: _route_node(runner, s))
+    graph.add_node("smalltalk", lambda s: _smalltalk_node(runner, s))
     graph.add_node("kb_query", lambda s: _kb_node(runner, s))
     graph.add_node("book_appointment", lambda s: _book_node(runner, s))
     graph.add_node("cancel_appointment", lambda s: _cancel_node(runner, s))
@@ -58,12 +59,14 @@ def _build_graph(runner: AgentGraphRunner):
         "route",
         lambda s: s["intent"],
         {
+            "smalltalk": "smalltalk",
             "kb_query": "kb_query",
             "book_appointment": "book_appointment",
             "cancel_appointment": "cancel_appointment",
             "list_appointments": "list_appointments",
         },
     )
+    graph.add_edge("smalltalk", END)
     graph.add_edge("kb_query", END)
     graph.add_edge("book_appointment", END)
     graph.add_edge("cancel_appointment", END)
@@ -92,6 +95,15 @@ def _route_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
     if any(k in msg for k in ("my booking", "my appointment", "list appointment", "status appointment", "check booking")):
         update_session(session_id, pending_intent="list_appointments")
         return {"intent": "list_appointments"}
+
+    if session.pending_intent == "book_appointment":
+        # Allow natural smalltalk and side knowledge questions during booking,
+        # without losing booking context.
+        if _is_smalltalk_only(msg):
+            return {"intent": "smalltalk"}
+        if _is_booking_side_question(msg):
+            return {"intent": "kb_query"}
+
     if any(k in msg for k in ("book", "appointment", "schedule", "slot")):
         update_session(session_id, pending_intent="book_appointment")
         return {"intent": "book_appointment"}
@@ -99,7 +111,29 @@ def _route_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
     if session.pending_intent in {"book_appointment", "cancel_appointment", "list_appointments"}:
         return {"intent": session.pending_intent}
 
+    if _is_smalltalk_only(msg):
+        return {"intent": "smalltalk"}
+
     return {"intent": "kb_query"}
+
+
+def _smalltalk_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
+    session = get_session(state["session_id"])
+    text = (state.get("message") or "").strip().lower()
+    category = _smalltalk_category(text)
+    name = session.name or ""
+
+    if category == "thanks":
+        greeting = f"You're welcome, {name}." if name else "You're welcome."
+        return {"answer": f"{greeting} If you need anything else about DL, ID, or appointments, just ask.", "payload": {"refusal": False}}
+    if category == "bye":
+        closing = f"Take care, {name}." if name else "Take care."
+        return {"answer": f"{closing} Reach out anytime you need help with Texas DPS services.", "payload": {"refusal": False}}
+    if category == "greeting":
+        lead = f"Hi {name}," if name else "Hi,"
+        return {"answer": f"{lead} how can I help you today?", "payload": {"refusal": False}}
+
+    return {"answer": "I am here to help with DL, ID, and appointment questions.", "payload": {"refusal": False}}
 
 
 def _kb_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
@@ -149,8 +183,12 @@ def _book_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
 
     slots = runner.appointment_store.list_open_slots(service_type=service_type)
     if not slots:
+        update_session(session_id, pending_booking_service_type=None)
         return {
-            "answer": "I could not find open slots for that service right now. Try a different service type.",
+            "answer": (
+                "I could not find open slots for that service right now.\n"
+                "Please choose another service: `dl_appointment`, `state_id`, or `renewal`."
+            ),
             "payload": {"refusal": False},
         }
 
@@ -344,3 +382,77 @@ def _wants_to_reset_flow(message: str) -> bool:
             "stop booking",
         )
     )
+
+
+def _smalltalk_category(message: str) -> str:
+    msg = (message or "").strip().lower()
+    if re.search(r"\b(thank you|thanks|thx|appreciate it)\b", msg):
+        return "thanks"
+    if re.search(r"\b(bye|goodbye|see you|talk to you later|have a good day)\b", msg):
+        return "bye"
+    if re.search(r"\b(hi|hello|hey|good morning|good afternoon|good evening)\b", msg):
+        return "greeting"
+    return ""
+
+
+def _is_smalltalk_only(message: str) -> bool:
+    msg = (message or "").strip().lower()
+    if not msg:
+        return False
+    category = _smalltalk_category(msg)
+    if not category:
+        return False
+
+    # Avoid stealing messages that include concrete task intent.
+    task_tokens = (
+        "book",
+        "appointment",
+        "schedule",
+        "cancel",
+        "renew",
+        "license",
+        "dl",
+        "id",
+        "cdl",
+        "slot",
+        "document",
+        "requirements",
+        "how",
+        "what",
+        "where",
+    )
+    for t in task_tokens:
+        if t in msg and category != "thanks":
+            return False
+    return True
+
+
+def _is_booking_side_question(message: str) -> bool:
+    msg = (message or "").strip().lower()
+    if not msg:
+        return False
+
+    # Keep booking flow when user is providing booking payloads.
+    if _extract_email(msg) or _extract_slot(msg):
+        return False
+    if _parse_slot_index_choice(msg) is not None:
+        return False
+    if _extract_service_type(msg) is not None:
+        return False
+
+    # Side info questions that should hit KB/RAG.
+    kb_tokens = (
+        "document",
+        "documents",
+        "requirement",
+        "requirements",
+        "proof",
+        "carry",
+        "fees",
+        "fee",
+        "cost",
+        "eligibility",
+        "online",
+        "process",
+    )
+    return any(t in msg for t in kb_tokens)

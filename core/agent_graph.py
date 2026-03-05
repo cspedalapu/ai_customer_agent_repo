@@ -119,10 +119,9 @@ def _book_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
     if not session.name:
         update_session(session_id, name=name, stage="active")
 
+    email = _extract_email(message) or session.pending_booking_email or ""
     requested_slot = _extract_slot(message)
     slot_service = _service_from_slot(requested_slot)
-
-    email = _extract_email(message) or session.pending_booking_email or ""
     service_type = _extract_service_type(message) or slot_service or session.pending_booking_service_type
 
     update_session(
@@ -155,15 +154,19 @@ def _book_node(runner: AgentGraphRunner, state: AgentState) -> AgentState:
             "payload": {"refusal": False},
         }
 
+    # Accept shorthand choices such as "1", "first one", or just "YYYY-MM-DD HH:MM".
     if not requested_slot:
-        options = "\n".join(f"- {s}" for s in slots[:3])
+        requested_slot = _resolve_slot_choice(message, slots)
+
+    if not requested_slot:
+        options = _format_slot_options(slots, limit=3)
         return {
             "answer": f"Please pick one of these available slots:\n{options}",
             "payload": {"refusal": False},
         }
 
     if requested_slot not in slots:
-        options = "\n".join(f"- {s}" for s in slots[:3])
+        options = _format_slot_options(slots, limit=3)
         return {
             "answer": f"That slot is unavailable. Please choose one of:\n{options}",
             "payload": {"refusal": False},
@@ -264,6 +267,62 @@ def _extract_service_type(text: str) -> Optional[str]:
 def _extract_slot(text: str) -> str:
     m = re.search(r"(dl_appointment|state_id|renewal)\s*\|\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}", text or "", re.IGNORECASE)
     return m.group(0).lower() if m else ""
+
+
+def _extract_datetime(text: str) -> str:
+    m = re.search(r"\b\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\b", text or "")
+    return m.group(0) if m else ""
+
+
+def _parse_slot_index_choice(text: str) -> Optional[int]:
+    t = (text or "").strip().lower()
+    if not t:
+        return None
+
+    # Bare numeric choice: "1", "2"
+    m = re.fullmatch(r"\s*(\d{1,2})\s*", t)
+    if m:
+        return int(m.group(1))
+
+    # "option 1", "slot 2", "pick 3", etc.
+    m = re.search(r"\b(?:option|slot|pick|choose|select)\s*(\d{1,2})\b", t)
+    if m:
+        return int(m.group(1))
+
+    # Common ordinals.
+    if "first" in t:
+        return 1
+    if "second" in t:
+        return 2
+    if "third" in t:
+        return 3
+    if "fourth" in t:
+        return 4
+    if "fifth" in t:
+        return 5
+    return None
+
+
+def _resolve_slot_choice(text: str, slots: list[str]) -> str:
+    if not slots:
+        return ""
+
+    idx = _parse_slot_index_choice(text)
+    if idx is not None and 1 <= idx <= len(slots):
+        return slots[idx - 1]
+
+    dt = _extract_datetime(text)
+    if dt:
+        for slot in slots:
+            if dt in slot:
+                return slot
+
+    return ""
+
+
+def _format_slot_options(slots: list[str], limit: int = 3) -> str:
+    chosen = slots[:limit]
+    return "\n".join(f"{i}. {slot}" for i, slot in enumerate(chosen, start=1))
 
 
 def _service_from_slot(slot: str) -> Optional[str]:
